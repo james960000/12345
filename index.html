@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Candy Crush 類遊戲</title>
+  <style>
+    :root {
+      --bg: #f8e8f8;
+      --panel: #fde8f0;
+      --text: #3b1d3e;
+      --border: #f4c0dc;
+      --candy-size: 70px;
+      --candy-shadow: 0 10px 16px rgba(199, 63, 119, 0.16);
+      --card: rgba(255,255,255,0.85);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Noto Sans TC', sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top left, #fff1f8 10%, #ffd8ec 45%, #fffbff 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: min(100%, 760px);
+      background: linear-gradient(180deg, #ffffffcc, #ffe1f0cc);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 32px;
+      padding: 26px;
+      box-shadow: 0 20px 50px rgba(225, 119, 177, 0.18);
+      backdrop-filter: blur(10px);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .title {
+      font-size: 1.8rem;
+      letter-spacing: 0.1em;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, auto);
+      gap: 12px;
+    }
+
+    .stat {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 14px 18px;
+      min-width: 120px;
+      text-align: center;
+    }
+
+    .stat span {
+      display: block;
+      font-size: 0.85rem;
+      opacity: 0.75;
+    }
+
+    .board {
+      width: fit-content;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(8, var(--candy-size));
+      grid-template-rows: repeat(8, var(--candy-size));
+      gap: 10px;
+      padding: 18px;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.85), rgba(255, 229, 247, 0.95));
+      border-radius: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.65);
+    }
+
+    .candy {
+      width: var(--candy-size);
+      height: var(--candy-size);
+      border-radius: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.15rem;
+      cursor: grab;
+      box-shadow: var(--candy-shadow);
+      transition: transform 180ms ease, opacity 180ms ease, box-shadow 180ms ease;
+      user-select: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .candy::before {
+      content: '';
+      position: absolute;
+      inset: 10px;
+      border-radius: 18px;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.55), transparent 40%);
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .candy.dragging {
+      opacity: 0.85;
+      transform: scale(1.06);
+      box-shadow: 0 22px 36px rgba(199, 63, 119, 0.3);
+    }
+
+    .candy span {
+      position: relative;
+      z-index: 1;
+    }
+
+    .candy[data-type='red'] { background: #f25c65; }
+    .candy[data-type='orange'] { background: #ffb14b; }
+    .candy[data-type='yellow'] { background: #ffdc5e; }
+    .candy[data-type='green'] { background: #61d293; }
+    .candy[data-type='blue'] { background: #6d92ff; }
+
+    .candy.match {
+      animation: pop 300ms ease forwards;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(0.2); opacity: 0; }
+    }
+
+    @keyframes fall {
+      0% { transform: translateY(-80px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes refill {
+      0% { transform: translateY(-80px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+
+    .candy.falling {
+      animation: fall 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .candy.refilling {
+      animation: refill 300ms ease-out;
+    }
+
+    .info {
+      text-align: center;
+      margin-top: 18px;
+      font-size: 0.94rem;
+      color: #8b4d72;
+    }
+
+    .hint {
+      margin-top: 16px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .hint button {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text);
+      padding: 12px 18px;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: background 160ms ease, transform 160ms ease;
+    }
+
+    .hint button:hover {
+      background: rgba(255,255,255,0.12);
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">Candy Crush 類遊戲</div>
+      <div class="stats">
+        <div class="stat">
+          <strong id="level">1</strong>
+          <span>關卡</span>
+        </div>
+        <div class="stat">
+          <strong id="target">300</strong>
+          <span>目標分數</span>
+        </div>
+        <div class="stat">
+          <strong id="score">0</strong>
+          <span>分數</span>
+        </div>
+        <div class="stat">
+          <strong id="moves">20</strong>
+          <span>剩餘步數</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="board" id="board"></div>
+
+    <div class="info" id="message">拖曳相鄰糖果交換位置，連成 3 個以上即可消除。</div>
+    <div class="hint">
+      <button id="resetBtn">重新開始</button>
+      <button id="hintBtn">提示</button>
+    </div>
+  </div>
+  <script>
+    const boardEl = document.getElementById('board');
+    const scoreEl = document.getElementById('score');
+    const movesEl = document.getElementById('moves');
+    const levelEl = document.getElementById('level');
+    const targetEl = document.getElementById('target');
+    const messageEl = document.getElementById('message');
+    const resetBtn = document.getElementById('resetBtn');
+    const hintBtn = document.getElementById('hintBtn');
+
+    const width = 8;
+    window.width = width;  // 導出便於測試與除錯
+    const candyTypes = ['red', 'orange', 'yellow', 'green', 'blue'];
+    const levels = [
+      { target: 300, moves: 20, description: '完成 300 分即可過關' },
+      { target: 700, moves: 18, description: '挑戰 700 分，進入第 2 關' },
+      { target: 1200, moves: 16, description: '衝刺 1200 分，進入第 3 關' },
+      { target: 1800, moves: 15, description: '挑戰 1800 分，進入第 4 關' },
+      { target: 2500, moves: 14, description: '攻頂 2500 分，進入第 5 關' },
+      { target: 3300, moves: 12, description: '最終挑戰：衝刺 3300 分' }
+    ];
+    let board = [];
+    window.board = board;  // 即時同步
+    let dragged = null;
+    let replaced = null;
+    let score = 0;
+    let moves = 20;
+    let currentLevel = 0;
+    let levelStartScore = 0;
+    let isProcessing = false;
+
+    function createBoard() {
+      board = Array.from({ length: width * width }, () => randomCandy());
+      while (hasMatch()) {
+        board = Array.from({ length: width * width }, () => randomCandy());
+      }
+      renderBoard();
+      updateStats();
+    }
+
+    function randomCandy() {
+      return candyTypes[Math.floor(Math.random() * candyTypes.length)];
+    }
+
+    function candyIcon(type) {
+      return {
+        red: '🍓',
+        orange: '🍊',
+        yellow: '🍋',
+        green: '🥝',
+        blue: '🫐'
+      }[type] || '🍬';
+    }
+
+    function renderBoard(animationState = {}) {
+      window.board = board;  // 同步到 window 便於測試
+      boardEl.innerHTML = '';
+      board.forEach((type, index) => {
+        const candy = document.createElement('div');
+        candy.className = 'candy';
+        candy.dataset.type = type;
+        candy.dataset.index = index;
+        candy.draggable = true;
+        candy.innerHTML = `<span>${candyIcon(type)}</span>`;
+        
+        // 根據動畫狀態應用動畫類
+        if (animationState.falling && animationState.falling.includes(index)) {
+          candy.classList.add('falling');
+        } else if (animationState.refilling && animationState.refilling.includes(index)) {
+          candy.classList.add('refilling');
+        }
+        
+        candy.addEventListener('dragstart', onDragStart);
+        candy.addEventListener('dragover', onDragOver);
+        candy.addEventListener('dragenter', onDragEnter);
+        candy.addEventListener('dragleave', onDragLeave);
+        candy.addEventListener('drop', onDrop);
+        candy.addEventListener('dragend', onDragEnd);
+        boardEl.appendChild(candy);
+      });
+    }
+
+    function updateStats() {
+      levelEl.textContent = currentLevel + 1;
+      const progress = Math.max(0, score - levelStartScore);
+      targetEl.textContent = `${levels[currentLevel].target} (${Math.max(0, levels[currentLevel].target - progress)} 剩餘)`;
+      scoreEl.textContent = score;
+      movesEl.textContent = moves;
+    }
+
+    function setMessage(text) {
+      messageEl.textContent = text;
+    }
+
+    function startLevel(index) {
+      currentLevel = index;
+      levelStartScore = score;
+      moves = levels[index].moves;
+      setMessage(`第 ${index + 1} 關：${levels[index].description}`);
+      createBoard();
+      updateStats();
+    }
+
+    function onDragStart(event) {
+      if (isProcessing) return;
+      dragged = event.currentTarget;
+      event.currentTarget.classList.add('dragging');
+    }
+
+    function onDragOver(event) {
+      event.preventDefault();
+    }
+
+    function onDragEnter(event) {
+      event.preventDefault();
+    }
+
+    function onDragLeave() {
+    }
+
+    function onDrop(event) {
+      if (isProcessing) return;
+      replaced = event.currentTarget;
+      if (!dragged || !replaced || dragged === replaced) return;
+      const draggedIndex = Number(dragged.dataset.index);
+      const replacedIndex = Number(replaced.dataset.index);
+      if (!isAdjacent(draggedIndex, replacedIndex)) return;
+      swapCandies(draggedIndex, replacedIndex);
+      if (hasMatch()) {
+        moves -= 1;
+        processMatches();
+      } else {
+        swapCandies(draggedIndex, replacedIndex);
+      }
+      updateStats();
+      checkLevelStatus();
+    }
+
+    function onDragEnd(event) {
+      event.target.classList.remove('dragging');
+      dragged = null;
+      replaced = null;
+    }
+
+    function isAdjacent(index1, index2) {
+      const validMoves = [index1 - 1, index1 + 1, index1 - width, index1 + width];
+      return validMoves.includes(index2) && !(index1 % width === 0 && index2 === index1 - 1) && !(index1 % width === width - 1 && index2 === index1 + 1);
+    }
+
+    function swapCandies(index1, index2) {
+      [board[index1], board[index2]] = [board[index2], board[index1]];
+      renderBoard();
+    }
+
+    function hasMatch() {
+      return findMatches().length > 0;
+    }
+
+    function findMatches() {
+      const matches = [];
+      for (let i = 0; i < width * width; i++) {
+        const row = Math.floor(i / width);
+        const col = i % width;
+        const current = board[i];
+        if (!current) continue;
+
+        if (col <= width - 3) {
+          const rowMatch = [i];
+          for (let next = i + 1; next < i + 3; next += 1) {
+            if (board[next] === current) rowMatch.push(next);
+            else break;
+          }
+          if (rowMatch.length >= 3) {
+            let next = i + rowMatch.length;
+            while (next < row * width + width && board[next] === current) {
+              rowMatch.push(next);
+              next += 1;
+            }
+            matches.push(rowMatch);
+          }
+        }
+
+        if (row <= width - 3) {
+          const colMatch = [i];
+          for (let next = i + width; next < i + width * 3; next += width) {
+            if (board[next] === current) colMatch.push(next);
+            else break;
+          }
+          if (colMatch.length >= 3) {
+            let next = i + width * colMatch.length;
+            while (next < width * width && board[next] === current) {
+              colMatch.push(next);
+              next += width;
+            }
+            matches.push(colMatch);
+          }
+        }
+      }
+      return mergeMatchIndices(matches);
+    }
+
+    function mergeMatchIndices(matchGroups) {
+      const indices = new Set();
+      matchGroups.flat().forEach(index => indices.add(index));
+      return Array.from(indices).sort((a, b) => a - b);
+    }
+
+    function processMatches() {
+      if (isProcessing) return;
+      // 同步 window.board（用於測試與除錯）
+      if (window.board && Array.isArray(window.board)) {
+        for (let i = 0; i < board.length; i++) {
+          board[i] = window.board[i];
+        }
+      } else {
+        window.board = board;
+      }
+      isProcessing = true;
+      const matched = findMatches();
+      if (matched.length === 0) {
+        isProcessing = false;
+        return;
+      }
+      matched.forEach(index => {
+        score += 10;
+        board[index] = null;
+      });
+      renderBoardWithMatches(matched);
+      setTimeout(() => {
+        // 記錄下落與補充的索引用於動畫
+        const fallingIndices = new Set();
+        const refillIndices = new Set();
+        
+        // 偵測下落的糖果
+        for (let col = 0; col < width; col += 1) {
+          const column = [];
+          const positions = [];
+          for (let row = 0; row < width; row += 1) {
+            const index = row * width + col;
+            if (board[index] !== null) {
+              column.push(board[index]);
+              positions.push(index);
+            }
+          }
+          if (column.length < width) {
+            // 有下落與補充
+            const empties = width - column.length;
+            for (let i = 0; i < empties; i += 1) {
+              refillIndices.add(i * width + col);
+            }
+            for (let i = 0; i < column.length; i += 1) {
+              const newIndex = (empties + i) * width + col;
+              if (positions[i] !== newIndex) {
+                fallingIndices.add(newIndex);
+              }
+            }
+          }
+        }
+        
+        collapseBoard();
+        refillBoard();
+        renderBoard({ falling: Array.from(fallingIndices), refilling: Array.from(refillIndices) });
+        updateStats();  // 立即更新分數顯示
+        // 先將 isProcessing 重置，讓下一輪檢查可以執行
+        // 再觸發 processMatches 以處理因下落/補充而產生的新消除
+        setTimeout(() => {
+          isProcessing = false;
+          processMatches();
+        }, 300);
+      }, 250);
+    }
+
+    function renderBoardWithMatches(matches) {
+      boardEl.childNodes.forEach((candy) => {
+        const index = Number(candy.dataset.index);
+        if (matches.includes(index)) {
+          candy.classList.add('match');
+        }
+      });
+    }
+
+    function collapseBoard() {
+      for (let col = 0; col < width; col += 1) {
+        const column = [];
+        for (let row = 0; row < width; row += 1) {
+          const index = row * width + col;
+          if (board[index] !== null) column.push(board[index]);
+        }
+        const empties = Array(width - column.length).fill(null);
+        const newColumn = empties.concat(column);
+        for (let row = 0; row < width; row += 1) {
+          board[row * width + col] = newColumn[row];
+        }
+      }
+    }
+
+    function refillBoard() {
+      for (let i = 0; i < width * width; i += 1) {
+        if (board[i] === null) {
+          board[i] = randomCandy();
+        }
+      }
+    }
+
+    function checkLevelStatus() {
+      const progress = Math.max(0, score - levelStartScore);
+      if (progress >= levels[currentLevel].target) {
+        if (currentLevel + 1 < levels.length) {
+          alert(`恭喜過關！進入第 ${currentLevel + 2} 關`);
+          startLevel(currentLevel + 1);
+        } else {
+          alert(`恭喜你完成所有關卡！最終分數：${score}`);
+          resetGame();
+        }
+        return;
+      }
+
+      if (moves <= 0) {
+        setTimeout(() => {
+          alert(`步數用盡！遊戲結束。最終分數：${score}`);
+          resetGame();
+        }, 150);
+      }
+    }
+
+    function resetGame() {
+      score = 0;
+      currentLevel = 0;
+      levelStartScore = 0;
+      isProcessing = false;
+      startLevel(0);
+    }
+
+    function showHint() {
+      const hint = findHint();
+      if (!hint) {
+        alert('目前沒有可交換產生消除的步法。');
+        return;
+      }
+      const [from, to] = hint;
+      const candy1 = boardEl.querySelector(`[data-index='${from}']`);
+      const candy2 = boardEl.querySelector(`[data-index='${to}']`);
+      candy1.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: 500 });
+      candy2.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: 500 });
+    }
+
+    function findHint() {
+      for (let i = 0; i < width * width; i += 1) {
+        const neighbors = [i - 1, i + 1, i - width, i + width];
+        neighbors.forEach(n => {});
+        for (const neighbor of neighbors) {
+          if (neighbor < 0 || neighbor >= width * width) continue;
+          if (!isAdjacent(i, neighbor)) continue;
+          swapCandies(i, neighbor);
+          const match = hasMatch();
+          swapCandies(i, neighbor);
+          if (match) return [i, neighbor];
+        }
+      }
+      return null;
+    }
+
+    resetBtn.addEventListener('click', resetGame);
+    hintBtn.addEventListener('click', showHint);
+
+    startLevel(0);
+  </script>
+</body>
+</html>
